@@ -1,0 +1,50 @@
+version: '3'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:14
+    container_name: f1-db
+    environment:
+      POSTGRES_USER: Shubhan
+      POSTGRES_PASSWORD: Rishita@28
+      POSTGRES_DB: f1-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - f1network
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: f1
+    environment:
+      PGADMIN_DEFAULT_EMAIL: shubhanmital@egmail.com
+      PGADMIN_DEFAULT_PASSWORD: Viratkohli
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - f1network
+
+  # Node.js application to collect F1 data
+  app:
+    build: .
+    container_name: f1-data-collector
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+    networks:
+      - f1network
+
+networks:
+  f1network:
+    driver: bridge
+
+volumes:
+  postgres-data:
