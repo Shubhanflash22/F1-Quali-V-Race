@@ -16,7 +16,7 @@ const pool = new Pool({
 
 // GitHub repository information
 const GITHUB_REPO = 'Shubhanflash22/F1-Quali-V-Race';
-const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/refs/heads/main/`;
+const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/refs/heads/main/Files/`;
 
 // Function to fetch file from GitHub
 async function fetchFileFromGithub(filename) {
@@ -55,15 +55,16 @@ async function readFile(filename) {
 // Function to extract year from filename
 function extractYearFromFilename(filename) {
   const match = filename.match(/Formula1_(\d{4})/);
+  console.log('Year', match);
   return match ? parseInt(match[1]) : null;
 }
 
 // Function to process qualifying data
 function processQualifyingData(data, year, mappings) {
   // Create lookup maps for faster access
-  const driverMap = new Map(mappings.driverMap.map(item => [item.DriverName, item.DriverCode]));
-  const constructorMap = new Map(mappings.constructorMap.map(item => [item.ConstructorName, item.ConstructorCode]));
-  const trackMap = new Map(mappings.trackMap.map(item => [item.TrackName, item.TrackCode]));
+  const driverMap = new Map(mappings.driverMap.map(item => [item['Driver Name'], item['Unique Code']]));
+  const constructorMap = new Map(mappings.constructorMap.map(item => [item['Constructor Name'], item['Unique Code']]));
+  const trackMap = new Map(mappings.trackMap.map(item => [item['Track Name'], item['Unique Code']]));
   
   return data.map(row => {
     const trackCode = trackMap.get(row.Track) || 'UNKNOWN';
@@ -83,9 +84,9 @@ function processQualifyingData(data, year, mappings) {
 // Function to process race data
 function processRaceData(data, year, mappings) {
   // Create lookup maps for faster access
-  const driverMap = new Map(mappings.driverMap.map(item => [item.DriverName, item.DriverCode]));
-  const constructorMap = new Map(mappings.constructorMap.map(item => [item.ConstructorName, item.ConstructorCode]));
-  const trackMap = new Map(mappings.trackMap.map(item => [item.TrackName, item.TrackCode]));
+  const driverMap = new Map(mappings.driverMap.map(item => [item['Driver Name'], item['Unique Code']]));
+  const constructorMap = new Map(mappings.constructorMap.map(item => [item['Constructor Name'], item['Unique Code']]));
+  const trackMap = new Map(mappings.trackMap.map(item => [item['Track Name'], item['Unique Code']]));
   
   return data.map(row => {
     const trackCode = trackMap.get(row.Track) || 'UNKNOWN';
@@ -143,7 +144,7 @@ async function setupDatabase() {
       track_code TEXT,
       driver_code TEXT,
       constructor_code TEXT,
-      position INTEGER
+      position TEXT
     )
     `,
     `
@@ -153,25 +154,25 @@ async function setupDatabase() {
       track_code TEXT,  
       driver_code TEXT,
       constructor_code TEXT,
-      position INTEGER,
+      position TEXT,
       starting_grid INTEGER
     )
     `,
     `
     CREATE TABLE IF NOT EXISTS constructors (
-      constructor_id INTEGER PRIMARY KEY,
+      constructor_id TEXT PRIMARY KEY,
       constructor_name TEXT NOT NULL
     )
     `,
     `
     CREATE TABLE IF NOT EXISTS drivers (
-      driver_id INTEGER PRIMARY KEY,
+      driver_id TEXT PRIMARY KEY,
       driver_name TEXT NOT NULL
     )
     `,
     `
     CREATE TABLE IF NOT EXISTS tracks (
-      track_id INTEGER PRIMARY KEY,
+      track_id TEXT PRIMARY KEY,
       track_name TEXT NOT NULL
     )
     `,
@@ -223,9 +224,9 @@ async function processF1Data() {
   try {
     // Load mapping data first
     console.log('Loading mapping data...');
-    const driverMap = await readCsvFile('Unique codes Drivers.csv');
-    const constructorMap = await readCsvFile('Unique codes Constructors.csv');
-    const trackMap = await readCsvFile('Unique codes Tracks.csv');
+    const driverMap = await readFile('Unique codes Drivers.csv');
+    const constructorMap = await readFile('Unique codes Constructors.csv');
+    const trackMap = await readFile('Unique codes Tracks.csv');
 
     const mappings = {
       driverMap: driverMap,
@@ -252,7 +253,7 @@ async function processF1Data() {
     for (const file of qualifyingFiles) {
       console.log(`Processing qualifying file: ${file}`);
       const year = extractYearFromFilename(file);
-      const data = await readExcelFile(file);
+      const data = await readFile(file);
       const processedData = processQualifyingData(data, year, mappings);
       await insertData('qualifying_results', processedData);
     }
@@ -261,17 +262,28 @@ async function processF1Data() {
     for (const file of raceFiles) {
       console.log(`Processing race file: ${file}`);
       const year = extractYearFromFilename(file);
-      const data = await readExcelFile(file);
+      const data = await readFile(file);
       const processedData = processRaceData(data, year, mappings);
       await insertData('race_results', processedData);
     }
+
+    // Create the Maps correctly based on the data structure
+    const driverData = await readFile('Unique codes Drivers.csv');
+    const constructorData = await readFile('Unique codes Constructors.csv');
+    const trackData = await readFile('Unique codes Tracks.csv');
+    const driverMap_topush = new Map(driverData.map(row => [row['Driver Name'], row['Unique Code']]));
+    const constructorMap_topush = new Map(constructorData.map(row => [row['Constructor Name'], row['Unique Code']]));
+    const trackMap_topush = new Map(trackData.map(row => [row['Track Name'], row['Unique Code']]));
+    const mappings_topush = {
+      driverMap: driverMap_topush,
+      constructorMap: constructorMap_topush,
+      trackMap: trackMap_topush
+    };
     
     // Optionally process and insert data into constructors, drivers, and tracks tables
-    console.log('Processing and inserting mapping data...');
-    await insertData('constructors', mappings.constructorMap.map(c => ({ constructor_id: c.ConstructorCode, constructor_name: c.ConstructorName })));
-    await insertData('drivers', mappings.driverMap.map(d => ({ driver_id: d.DriverCode, driver_name: d.DriverName})));
-    await insertData('tracks', mappings.trackMap.map(t => ({ track_id: t.TrackCode, track_name: t.TrackName})));
-    
+    await insertData('constructors', Array.from(mappings_topush.constructorMap).map(([constructor_name, constructor_id]) => ({ constructor_id: constructor_id, constructor_name: constructor_name })));
+    await insertData('drivers', Array.from(mappings_topush.driverMap).map(([driver_name, driver_id]) => ({ driver_id: driver_id, driver_name: driver_name })));
+    await insertData('tracks', Array.from(mappings_topush.trackMap).map(([track_name, track_id]) => ({ track_id: track_id, track_name: track_name })));
     console.log('F1 data processing complete!');
   } catch (error) {
     console.error('Error processing F1 data:', error);
