@@ -1,0 +1,15 @@
+{
+  "name": "F1-Database",
+  "version": "1.0.0",
+  "description": "F1 Database Collector",
+  "main": "f1_data_collector.js",
+  "scripts": {
+    "start": "node f1_data_collector.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "pg": "^8.11.0",
+    "xlsx": "^0.18.5"
+  },
+  "type": "module"
+}
